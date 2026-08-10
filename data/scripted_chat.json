@@ -1,0 +1,22 @@
+{
+  "scenario": "Escenarios del reporte (modo guion)",
+  "messages": [
+    {"user": "jugador_01", "message": "buena partida, gracias"},
+    {"user": "jugador_02", "message": "eres un idiota"},
+    {"user": "jugador_03", "message": "1d10t4"},
+    {"user": "jugador_03", "message": "t0nt@"},
+    {"user": "jugador_04", "message": "este nivel es un infierno de difícil"},
+    {"user": "jugador_04", "message": "la rata del jefe del nivel 3 es difícil de matar"},
+    {"user": "jugador_05", "message": "tú eres una rata"},
+    {"user": "jugador_06", "message": "claro, excelente jugada genio"},
+    {"user": "jugador_07", "message": "VAMOS EQUIPO A GANAR ESTA PARTIDA AHORA MISMO"},
+    {"user": "jugador_08", "message": "h1j0 d3 puta"},
+    {"user": "jugador_09", "message": "jajaja"},
+    {"user": "jugador_09", "message": "jajaja"},
+    {"user": "jugador_09", "message": "jajaja"},
+    {"user": "jugador_09", "message": "jajaja"},
+    {"user": "jugador_09", "message": "jajaja"},
+    {"user": "jugador_09", "message": "jajaja"},
+    {"user": "jugador_10", "message": "¿quién quiere jugar ranked?"}
+  ]
+}
