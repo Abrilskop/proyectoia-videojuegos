@@ -64,6 +64,33 @@ tests/                  Tests unitarios de las reglas tradicionales
 .venv\Scripts\python.exe -m src.demo.chat_simulator --interactivo
 ```
 
+## Bot de Discord (moderación en vivo)
+
+Bot que modera mensajes reales con el pipeline completo: el sistema tradicional primero
+(~12 ms) y, si pasa, el Transformer en GPU. Bloquea (borra + timeout), advierte gritos y
+reenvía mensajes ambiguos (0.50–0.80) a una cola de revisión humana. La reputación por
+jugador y la auditoría de decisiones se persisten en `bot.db` (SQLite).
+
+### Configuración (una vez)
+
+1. Crea una app en <https://discord.com/developers> → *Applications* → *New Application*.
+2. En *Bot* → *Reset Token* → copia el token.
+3. Activa **Message Content Intent** (imprescindible) y, opcionalmente, **Server Members Intent**.
+4. Invita el bot con *OAuth2 → URL Generator*: scopes `bot` + `applications.commands`,
+   permisos *Read Messages*, *Send Messages*, *Manage Messages*, *Moderate Members* y *View Channel*.
+5. Copia `.env.example` → `.env`, pega tu token y (opcional) los IDs de canal de revisión y de log.
+
+### Ejecución
+
+```powershell
+.venv\Scripts\python.exe -m src.bot.run_bot
+```
+
+Comandos del bot:
+
+- `/moderate <mensaje>` — prueba un mensaje con ambos sistemas.
+- `/reputacion <@usuario>` — consulta la reputación acumulada.
+
 ## Reglas del sistema tradicional
 
 | Regla | Descripción |
