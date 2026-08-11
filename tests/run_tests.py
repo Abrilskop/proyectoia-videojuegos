@@ -13,6 +13,17 @@ from src.traditional.rules import (
     normalize,
     normalize_leetspeak,
 )
+from tests.test_bot_moderator import (
+    test_auditoria_guarda_decisiones,
+    test_ia_aprueba_probabilidad_baja,
+    test_ia_bloquea_probabilidad_alta,
+    test_ia_envia_revision_humana,
+    test_reputacion_se_penaliza,
+    test_tradicional_advierte_grito,
+    test_tradicional_bloquea_insulto,
+    test_tradicional_bloquea_leetspeak,
+    test_tradicional_bloquea_spam,
+)
 
 
 def check(name, condition):
@@ -79,6 +90,15 @@ def run_all():
         test_regla3_grito,
         test_regla4_spam,
         test_falso_positivo_tradicional,
+        test_tradicional_bloquea_insulto,
+        test_tradicional_bloquea_leetspeak,
+        test_tradicional_advierte_grito,
+        test_tradicional_bloquea_spam,
+        test_ia_aprueba_probabilidad_baja,
+        test_ia_envia_revision_humana,
+        test_ia_bloquea_probabilidad_alta,
+        test_reputacion_se_penaliza,
+        test_auditoria_guarda_decisiones,
     ):
         try:
             fn()
