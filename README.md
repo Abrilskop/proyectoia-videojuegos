@@ -63,6 +63,7 @@ tests/                  Tests unitarios de las reglas tradicionales
 ```powershell
 .venv\Scripts\python.exe -m src.demo.chat_simulator --interactivo
 ```
+## Diagrama Trtadracional e ia
 
 ## Bot de Discord (moderación en vivo)
 
