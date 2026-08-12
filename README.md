@@ -63,7 +63,15 @@ tests/                  Tests unitarios de las reglas tradicionales
 ```powershell
 .venv\Scripts\python.exe -m src.demo.chat_simulator --interactivo
 ```
-## Diagrama Trtadracional e ia
+## Diagramas de flujo
+
+Diagramas de los dos paradigmas y el informe completo de la actividad (`reports/informe_completo.md`):
+
+- `reports/diagrama_tradicional.png` — flujo del sistema tradicional (R1-R4).
+- `reports/diagrama_ia.png` — flujo del sistema de IA (entrenamiento + inferencia).
+- `reports/comparativa_grafica.png` — gráfica comparativa de métricas.
+
+Para regenerarlos: `.venv\Scripts\python.exe -m src.evaluation.diagramas`
 
 ## Bot de Discord (moderación en vivo)
 
