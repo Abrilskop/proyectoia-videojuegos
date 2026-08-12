@@ -251,6 +251,14 @@ preentrenada sobre texto en 104 idiomas (incluido el español) y destilada para 
 rápida que BERT. Sobre ella se añade un **cabezal de clasificación binaria** y se realiza
 **fine-tuning** (ajuste fino de todos los pesos) con el dataset sintético.
 
+**Origen del modelo:** se descarga automáticamente desde el **Hugging Face Hub** mediante la librería
+`transformers` (`AutoTokenizer.from_pretrained` y `AutoModelForSequenceClassification.from_pretrained`,
+`src/ai/train.py:68-69`) y se guarda fine-tuneado en `models/toxic_transformer/`
+(archivo de pesos `model.safetensors`, ~516 MB, en formato `safetensors`).
+
+**Arquitectura:** Transformer *encoder* destilado con **6 capas, 12 cabezas de atención, dimensión
+oculta 768 y ~134 millones de parámetros**, con vocabulario multilingüe (`~120k` tokens).
+
 **Hiperparámetros de entrenamiento** (`src/ai/train.py:79`):
 
 | Parámetro | Valor | Justificación |
@@ -352,7 +360,80 @@ decenas de ms, viable para chat en vivo).
   generalizar** a frases no vistas y en el caso por caso (sarcasmo y falsos positivos), donde el
   tradicional simplemente no tiene mecanismo para acertar.
 
-## D.3 Conclusión
+## D.3 ¿De dónde salen los porcentajes? — Cómo se calculan las métricas (no es regresión)
+
+Una duda frecuente es si el modelo "calcula porcentajes por regresión". **No**: esto es
+**clasificación binaria**, no regresión. A continuación se detalla, paso a paso y con un ejemplo
+numérico real, cómo se obtienen los porcentajes de la gráfica.
+
+### D.3.1 Del modelo a la probabilidad
+
+El Transformer devuelve **2 valores brutos (logits)**, uno por clase (adecuado / tóxico). La función
+`softmax` los convierte en una distribución de probabilidad cuya suma es siempre **1**:
+
+```python
+# src/ai/inference.py:37
+probs = torch.softmax(logits, dim=-1)[0]
+prob  = float(probs[1])   # P(tóxico)
+```
+
+- `P(tóxico) = 0.92` significa "el modelo estima 92% de toxicidad".
+- Los **umbrales 0.80 / 0.50** **no se aprenden ni se calculan por regresión**: son **política de
+  negocio** elegida por el diseñador para decidir el riesgo (bloquear, revisar o aceptar). El
+  porcentaje de la cola de revisión sí puede ajustarse por la **reputación del jugador**, que
+  desplaza el logit (probabilidad previa) antes de aplicar el umbral (`src/ai/inference.py:40`).
+
+### D.3.2 De la decisión a la matriz de confusión
+
+Para evaluar, se compara la decisión de cada sistema contra la **etiqueta real** del mensaje y se
+cuentan **TP / FP / FN / TN** (`src/evaluation/metrics.py:11`):
+
+| | Etiqueta real: TÓXICO | Etiqueta real: ADECUADO |
+|---|---|---|
+| Sistema dijo TÓXICO | **TP** (verdadero positivo) | **FP** (falso positivo) |
+| Sistema dijo ADECUADO | **FN** (falso negativo) | **TN** (verdadero negativo) |
+
+### D.3.3 Fórmulas
+
+| Métrica | Fórmula | Qué mide |
+|---|---|---|
+| Precisión | `TP / (TP + FP)` | De lo que se bloquea, cuánto es realmente tóxico (evita censura injusta) |
+| Recall | `TP / (TP + FN)` | De lo tóxico real, cuánto se logra detectar (evita que se escape la toxicidad) |
+| F1 | `2·P·R / (P + R)` | Media armónica de precisión y recall (una sola nota) |
+| Exactitud | `(TP + TN) / N` | Aciertos totales sobre el total de mensajes |
+
+### D.3.4 Ejemplo trabajado con los datos reales (casos curados, n = 21)
+
+Matriz de confusión del **sistema tradicional** sobre los 21 casos del informe:
+
+| | Real Tóxico | Real Adecuado |
+|---|---|---|
+| Predicho Tóxico | **TP = 8** | **FP = 2** |
+| Predicho Adecuado | **FN = 3** | **TN = 8** |
+
+- Los **3 FN** son los casos de **sarcasmo** ("claro, excelente jugada genio", etc.) que no contienen
+  palabras prohibidas y el tradicional no detecta.
+- Los **2 FP** son los **falsos positivos**: "este nivel es un infierno de difícil" y "la rata del
+  jefe del nivel 3 es difícil de matar", bloqueadas solo por contener "infierno" y "rata".
+
+Cálculo de cada porcentaje:
+
+```
+Precisión = TP/(TP+FP) = 8/(8+2)  = 0.800
+Recall    = TP/(TP+FN) = 8/(8+3)  = 0.727
+F1        = 2·0.800·0.727 / (0.800+0.727) = 0.762
+Exactitud = (TP+TN)/N  = (8+8)/21  = 0.762
+```
+
+La **IA** sobre los mismos 21 casos obtuvo TP = 11, TN = 10, FP = 0, FN = 0 → todas las métricas
+**1.000**. Para la muestra de 400 mensajes de test se usó el mismo procedimiento (`comparativa.py`).
+
+> **Conclusión del apartado:** los porcentajes de la gráfica de barras **no** son probabilidades
+> crudas ni regresión; son métricas derivadas de la **matriz de confusión** (contar aciertos y
+> errores de clasificación). La probabilidad `P(tóxico)` solo se usa internamente para aplicar el
+> umbral de decisión.
+
+## D.4 Conclusión
 
 El problema elegido demuestra la diferencia conceptual que exige la actividad: **en el modelo
 tradicional el programador escribe las reglas; en el de IA, el algoritmo aprende las reglas a partir
@@ -389,6 +470,19 @@ mensajes reales con el pipeline completo:
 # Ejecución del bot (el modelo se carga localmente, GPU si está disponible)
 .venv\Scripts\python.exe -m src.bot.run_bot
 ```
+
+### Pruebas realizadas en Discord
+
+El bot se probó en un servidor real de Discord:
+
+- **Nombre del bot:** `powerangerrosabot`
+- **Servidor de prueba:** `probando a powerrangerrosabot`
+
+**Resultados observados:** el bot permaneció conectado y sincronizando sus comandos; los mensajes
+tóxicos (directos y en leetspeak) fueron **borrados** con timeout al autor; los mensajes en
+MAYÚSCULAS largos recibieron **advertencia**; y el comando `/moderate <mensaje>` respondió en vivo con
+la decisión de ambos sistemas y la probabilidad de toxicidad de la IA. Las decisiones quedaron
+registradas en la auditoría de `bot.db` para su consulta.
 
 # Anexo B — Limitaciones y trabajo futuro
 
@@ -431,3 +525,50 @@ mensajes reales con el pipeline completo:
 # 8. Bot de Discord (requiere DISCORD_TOKEN en .env)
 .venv\Scripts\python.exe -m src.bot.run_bot
 ```
+
+# Anexo D — Herramientas, librerías y características de la máquina
+
+Todo el proyecto se desarrolló y ejecutó en la siguiente configuración local (datos reales del equipo).
+
+## D.1 Características de la máquina local
+
+| Componente | Especificación |
+|---|---|
+| Sistema operativo | Microsoft Windows 11 Enterprise (NT 10.0.26200) |
+| Procesador (CPU) | Intel Core i5-10300H @ 2.50 GHz (4 núcleos / 8 hilos) |
+| Memoria RAM | 8 GB |
+| Tarjeta gráfica (GPU) | NVIDIA GeForce RTX 2060 with Max-Q Design, 6 GB VRAM (driver 592.82) |
+| CUDA | 12.4 (torch 2.6.0+cu124) |
+| Python | 3.13.14 (entorno virtual `.venv` local, no instalado global) |
+
+## D.2 Librerías y herramientas utilizadas
+
+Todas las librerías se instalaron desde **PyPI** con `pip install -r requirements.txt` dentro del
+entorno virtual; el modelo se descargó del **Hugging Face Hub**.
+
+| Herramienta / Librería | Versión | Función en el proyecto | Dónde se obtuvo |
+|---|---|---|---|
+| `torch` (PyTorch) | 2.6.0+cu124 | Red neuronal Transformer con aceleración CUDA | PyPI |
+| `transformers` | 5.15.0 | Carga/entrenamiento de modelos Hugging Face (`Trainer`) | PyPI |
+| `datasets` | 5.0.1 | Infraestructura de datos de Hugging Face | PyPI |
+| `tokenizers` | 0.22.2 | Tokenización del modelo distilBERT | PyPI (dependencia) |
+| `safetensors` | 0.8.0 | Formato seguro de pesos del modelo (`model.safetensors`) | PyPI |
+| `huggingface_hub` | 1.27.0 | Descarga de `distilbert-base-multilingual-cased` | PyPI / Hugging Face Hub |
+| `scikit-learn` | 1.9.0 | Métricas (`precision_recall_fscore_support`, `accuracy_score`) | PyPI |
+| `pandas` | 3.0.5 | Lectura/escritura de los CSV del dataset | PyPI |
+| `numpy` | 2.5.2 | Cálculos numéricos y matrices | PyPI |
+| `matplotlib` | 3.11.1 | Gráfica comparativa y diagramas de flujo | PyPI |
+| `tqdm` | 4.70.0 | Barras de progreso de entrenamiento | PyPI |
+| `discord.py` | 2.7.1 | Cliente del bot de Discord | PyPI |
+| `audioop-lts` | 0.2.2 | Compatibilidad de `discord.py` con Python 3.13 | PyPI (dependencia) |
+| `python-dotenv` | 1.2.2 | Lectura del token desde `.env` | PyPI |
+
+## D.3 Modelo y artefactos generados
+
+| Artefacto | Detalle | Ubicación |
+|---|---|---|
+| Modelo preentrenado | `distilbert-base-multilingual-cased` (~134 M params, 6 capas) | Descargado del Hugging Face Hub |
+| Modelo fine-tuneado | Pesos finales en `model.safetensors` (~516 MB) | `models/toxic_transformer/` |
+| Dataset sintético | 6000 ejemplos (message, label), 45/55 | `data/raw/chat_toxicidad.csv` |
+| Datasets particionados | train 4200 / val 900 / test 900 | `data/processed/` |
+| Base de datos del bot | Reputación y auditoría (SQLite) | `bot.db` |
