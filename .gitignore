@@ -2,6 +2,5 @@
 __pycache__/
 *.pyc
 models/toxic_transformer/
-reports/*.png
 .env
 *.db
